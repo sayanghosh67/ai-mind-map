@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../domain/providers/app_providers.dart';
 import 'processing_screen.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -72,10 +73,35 @@ class HomeScreen extends ConsumerWidget {
                 onTap: () => _pickImage(context, ref, ImageSource.gallery),
               ),
               const Spacer(),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.link, color: Colors.blue),
+                    onPressed: () async {
+                      final url = Uri.parse('https://www.linkedin.com/in/sayan-ghosh97/');
+                      if (!await launchUrl(url)) {
+                        debugPrint('Could not launch \$url');
+                      }
+                    },
+                    tooltip: 'LinkedIn',
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.camera_alt, color: Colors.pink),
+                    onPressed: () async {
+                      final url = Uri.parse('https://www.instagram.com/sayan_ghosh97/');
+                      if (!await launchUrl(url)) {
+                        debugPrint('Could not launch \$url');
+                      }
+                    },
+                    tooltip: 'Instagram',
+                  ),
+                ],
+              ),
               Padding(
                 padding: const EdgeInsets.only(bottom: 16.0),
                 child: Text(
-                  'App made by Sayan Ghosh\nAll copyrights reserved by me © 2026',
+                  'App made by Sayan Ghosh\nAll copyrights reserved by Sayan Ghosh © 2026',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Colors.grey,
