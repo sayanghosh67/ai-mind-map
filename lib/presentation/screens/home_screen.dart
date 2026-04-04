@@ -72,6 +72,17 @@ class HomeScreen extends ConsumerWidget {
                 onTap: () => _pickImage(context, ref, ImageSource.gallery),
               ),
               const Spacer(),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16.0),
+                child: Text(
+                  'App made by Sayan Ghosh\nAll copyrights reserved by me © 2026',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Colors.grey,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
             ],
           ),
         ),
