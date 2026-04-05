@@ -1,79 +1,158 @@
 import 'dart:convert';
-import 'package:google_generative_ai/google_generative_ai.dart';
+import 'dart:typed_data';
+import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 import '../core/constants.dart';
 import '../domain/models/mind_map_node.dart';
 
 class LLMService {
-  Future<MindMapNode> generateMindMap(String extractedText) async {
-    if (extractedText.trim().isEmpty) {
-      throw Exception('No readable text found in the image. Please try capturing a clearer photo with visible text.');
-    }
+  static const String _groqEndpoint = 'https://api.groq.com/openai/v1/chat/completions';
 
-    final apiKey = AppConstants.geminiApiKey;
-    if (apiKey == 'YOUR_GEMINI_API_KEY' || apiKey.isEmpty) {
-       // Only return fallback if API key is not configured
-       print('Gemini API key not configured. Using fallback map.');
-       return _generateMockMindMap(extractedText);
+  /// Single-call approach: Llama 4 Scout reads image AND produces JSON mindmap directly
+  Future<MindMapNode> generateMindMapFromImage(XFile imageFile, {String? groqKey}) async {
+    final activeGroqKey = AppConstants.groqApiKey.isNotEmpty
+        ? AppConstants.groqApiKey
+        : (groqKey ?? '');
+
+    if (activeGroqKey.isEmpty) {
+      return _errorMindMap('Missing Groq API Key.');
     }
 
     try {
-      final model = GenerativeModel(
-        model: AppConstants.textModel,
-        apiKey: apiKey,
-        generationConfig: GenerationConfig(
-          responseMimeType: 'application/json',
-        ),
-      );
+      final Uint8List bytes = await imageFile.readAsBytes();
+      final String base64Image = base64Encode(bytes);
 
-      final prompt = '${AppConstants.systemPrompt}\n\nRaw Text:\n$extractedText';
-      final content = [Content.text(prompt)];
-      final response = await model.generateContent(content);
+      // Single call: vision model reads image AND outputs JSON mind map directly
+      final response = await http.post(
+        Uri.parse(_groqEndpoint),
+        headers: {
+          'Authorization': 'Bearer $activeGroqKey',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'model': 'meta-llama/llama-4-scout-17b-16e-instruct',
+          'messages': [
+            {
+              'role': 'user',
+              'content': [
+                {
+                  'type': 'text',
+                  'text': AppConstants.visionSystemPrompt,
+                },
+                {
+                  'type': 'image_url',
+                  'image_url': {
+                    'url': 'data:image/jpeg;base64,$base64Image',
+                  },
+                },
+              ],
+            }
+          ],
+          'temperature': 0.1,
+          'max_tokens': 2048,
+        }),
+      ).timeout(const Duration(seconds: 60));
 
-      if (response.text != null && response.text!.isNotEmpty) {
-        final String rawContent = response.text!;
-        
-        // Find JSON part in case the model adds conversational text
-        final startIndex = rawContent.indexOf('{');
-        final endIndex = rawContent.lastIndexOf('}');
-        
-        if (startIndex != -1 && endIndex != -1) {
-          final jsonString = rawContent.substring(startIndex, endIndex + 1);
-          final Map<String, dynamic> jsonData = jsonDecode(jsonString);
-          return MindMapNode.fromJson(jsonData);
-        } else {
-          throw Exception('Failed to extract JSON from Gemini response.');
-        }
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final String content = data['choices'][0]['message']['content'] ?? '';
+        return _parseJsonToMindMap(content);
       } else {
-        throw Exception('Gemini returned an empty response.');
+        // If vision model fails, try text-only fallback (Groq logic model)
+        print('Vision model failed (${response.statusCode}): ${response.body}');
+        return _fallbackTextMindMap(activeGroqKey, 'Could not read image. Please describe your notes.');
       }
     } catch (e) {
-      print('Error during Gemini generation: $e');
-      throw Exception('Failed to generate AI Mind Map. Please ensure your Gemini API key is valid and try again. Details: $e');
+      print('LLMService Error: $e');
+      return _errorMindMap('Error: $e');
     }
   }
 
-  // Fallback map if the LLM request fails. Useful for demonstration until API key is set.
-  MindMapNode _generateMockMindMap(String initialText) {
+  /// Fallback: text-only Groq call (no vision needed)
+  Future<MindMapNode> _fallbackTextMindMap(String apiKey, String text) async {
+    try {
+      final response = await http.post(
+        Uri.parse(_groqEndpoint),
+        headers: {
+          'Authorization': 'Bearer $apiKey',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'model': 'llama-3.3-70b-versatile',
+          'messages': [
+            {'role': 'system', 'content': AppConstants.systemPrompt},
+            {'role': 'user', 'content': 'Create a JSON mind map for: $text'},
+          ],
+          'response_format': {'type': 'json_object'},
+          'temperature': 0.1,
+          'max_tokens': 2048,
+        }),
+      ).timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final String content = data['choices'][0]['message']['content'];
+        return _parseJsonToMindMap(content);
+      } else {
+        return _errorMindMap('Groq Error: ${response.statusCode}');
+      }
+    } catch (e) {
+      return _errorMindMap('Fallback failed: $e');
+    }
+  }
+
+  /// Robust JSON parser — extracts JSON even if wrapped in markdown code blocks
+  MindMapNode _parseJsonToMindMap(String content) {
+    try {
+      // Strip markdown code fences if present
+      String cleaned = content.trim();
+      if (cleaned.contains('```json')) {
+        cleaned = cleaned.split('```json').last.split('```').first.trim();
+      } else if (cleaned.contains('```')) {
+        cleaned = cleaned.split('```').where((s) => s.trim().isNotEmpty).first.trim();
+      }
+
+      // Find the first { and last } to extract pure JSON
+      final int start = cleaned.indexOf('{');
+      final int end = cleaned.lastIndexOf('}');
+      if (start != -1 && end != -1 && end > start) {
+        cleaned = cleaned.substring(start, end + 1);
+      }
+
+      final Map<String, dynamic> json = jsonDecode(cleaned);
+      return MindMapNode.fromJson(json);
+    } catch (e) {
+      print('JSON parse error: $e\nContent: $content');
+      return _errorMindMap('Could not parse AI response. Please try again.');
+    }
+  }
+
+  /// Error mind map for display
+  MindMapNode _errorMindMap(String message) {
     return MindMapNode(
       id: 'root',
-      label: 'Extracted Notes',
+      label: 'Generation Failed',
       children: [
         MindMapNode(
-          id: '1',
-          label: 'Concepts Found',
-          children: [
-            MindMapNode(id: '1a', label: 'Main Concept A'),
-            MindMapNode(id: '1b', label: 'Main Concept B'),
-          ]
+          id: 'err1',
+          label: message,
+          children: [],
         ),
         MindMapNode(
-          id: '2',
-          label: 'Context/Summary',
+          id: 'tip',
+          label: 'Tips',
           children: [
-            MindMapNode(id: '2a', label: initialText.length > 30 ? initialText.substring(0, 30) + '...' : initialText),
-          ]
+            MindMapNode(id: 'tip1', label: 'Use a clear, well-lit photo'),
+            MindMapNode(id: 'tip2', label: 'Check your Groq API key in Settings'),
+            MindMapNode(id: 'tip3', label: 'Try again with a smaller section'),
+          ],
         ),
-      ]
+      ],
     );
+  }
+
+  // Deprecated shim
+  Future<MindMapNode> generateMindMap(String text) async {
+    return _errorMindMap('Use image upload to generate mind maps.');
   }
 }

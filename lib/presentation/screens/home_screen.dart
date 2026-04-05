@@ -18,9 +18,54 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   bool _isHoveringCamera = false;
   bool _isHoveringGallery = false;
 
+  Future<void> _showApiKeyDialog(BuildContext context) async {
+    final groqController = TextEditingController(text: ref.read(groqApiKeyProvider));
+    
+    return showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('AI Service Settings'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Groq API Key (Required for Vision & Logic)'),
+            TextField(
+              controller: groqController,
+              decoration: const InputDecoration(hintText: 'gsk_...'),
+              obscureText: true,
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Groq is fully integrated for fast image processing and rendering.',
+              style: TextStyle(fontSize: 10, fontStyle: FontStyle.italic, color: Colors.grey),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+               ref.read(groqApiKeyProvider.notifier).state = groqController.text;
+               Navigator.pop(context);
+               ScaffoldMessenger.of(context).showSnackBar(
+                 const SnackBar(content: Text('AI Settings Saved!')),
+               );
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _pickImage(WidgetRef ref, ImageSource source) async {
     final picker = ImagePicker();
     try {
+      
       final XFile? image = await picker.pickImage(source: source);
       if (image != null) {
         ref.read(originalImageProvider.notifier).state = image;
@@ -54,6 +99,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () => _showApiKeyDialog(context),
+            tooltip: 'API Key Settings',
+          ),
           IconButton(
             icon: const Icon(Icons.history),
             onPressed: () {
