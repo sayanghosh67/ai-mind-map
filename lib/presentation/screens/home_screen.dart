@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../../domain/providers/app_providers.dart';
 import 'processing_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -209,12 +210,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             IconButton(
-              icon: const Icon(Icons.link, color: Colors.blue),
+              icon: const FaIcon(FontAwesomeIcons.linkedinIn, color: Color(0xFF0077B5)),
               onPressed: () => launchUrl(Uri.parse('https://www.linkedin.com/in/sayan-ghosh97/')),
               tooltip: 'LinkedIn',
             ),
+            const SizedBox(width: 16),
             IconButton(
-              icon: const Icon(Icons.camera_alt, color: Colors.pink),
+              icon: const FaIcon(FontAwesomeIcons.instagram, color: Color(0xFFE4405F)),
               onPressed: () => launchUrl(Uri.parse('https://www.instagram.com/sayan_ghosh97/')),
               tooltip: 'Instagram',
             ),
@@ -223,7 +225,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         Padding(
           padding: const EdgeInsets.only(bottom: 16.0),
           child: Text(
-            'App made by Sayan Ghosh\n© 2026',
+            'App designed & developed by Sayan Ghosh\n© 2026',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
               color: Colors.grey,

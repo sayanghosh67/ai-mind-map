@@ -1,21 +1,31 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 class AppConstants {
-  // Get your FREE API key from https://console.groq.com/keys
-  // Sign up at groq.com - no credit card needed!
-  static const String groqApiKey = String.fromEnvironment('GROQ_API_KEY', defaultValue: 'YOUR_GROQ_API_KEY');
+  // Get your FREE API key from https://aistudio.google.com/app/apikey
+  static const String geminiApiKey = String.fromEnvironment('GEMINI_API_KEY', defaultValue: 'YOUR_GEMINI_API_KEY');
 
-  // Groq endpoints (OpenAI-compatible)
-  static const String groqEndpoint = 'https://api.groq.com/openai/v1/chat/completions';
-
-  // Models
-  static const String textModel = 'llama-3.3-70b-versatile';
-  static const String visionModel = 'meta-llama/llama-4-scout-17b-16e-instruct';
-
-  static String get effectiveEndpoint {
-    if (kIsWeb) {
-      return 'https://corsproxy.io/?$groqEndpoint';
+  // Gemini Models
+  static const String textModel = 'gemini-2.5-flash';
+  
+  // Base prompt for the AI
+  static const String systemPrompt = '''
+    You are an expert at creating structured Mind Maps from notes.
+    Convert the provided text into a valid JSON hierarchical structure.
+    Strictly follow this JSON format:
+    {
+      "id": "root",
+      "label": "Main Topic",
+      "children": [
+        {
+          "id": "unique_id_1",
+          "label": "Sub Topic",
+          "children": []
+        }
+      ]
     }
-    return groqEndpoint;
-  }
+    Rules:
+    1. Output ONLY the JSON object.
+    2. Ensure IDs are unique.
+    3. Keep labels concise.
+  ''';
 }

@@ -1,82 +1,54 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'package:google_generative_ai/google_generative_ai.dart';
 import '../core/constants.dart';
 import '../domain/models/mind_map_node.dart';
 
 class LLMService {
   Future<MindMapNode> generateMindMap(String extractedText) async {
     if (extractedText.trim().isEmpty) {
-      throw Exception('Extracted text is empty. Cannot generate mind map.');
+      throw Exception('No readable text found in the image. Please try capturing a clearer photo with visible text.');
     }
 
-    final prompt = '''
-Convert the following raw handwritten notes into a structured mind map.
-- Extract key topics
-- Remove noise
-- Use hierarchical structure
-- Keep points concise
-- Format as tree structure
-
-Return ONLY a valid JSON object representing the root node of the mind map.
-The JSON must have this structure:
-{
-  "id": "root",
-  "label": "Main Topic",
-  "children": [
-    {
-      "id": "child1",
-      "label": "Sub Topic 1",
-      "children": []
+    final apiKey = AppConstants.geminiApiKey;
+    if (apiKey == 'YOUR_GEMINI_API_KEY' || apiKey.isEmpty) {
+       // Only return fallback if API key is not configured
+       print('Gemini API key not configured. Using fallback map.');
+       return _generateMockMindMap(extractedText);
     }
-  ]
-}
-
-Raw Text:
-$extractedText
-''';
 
     try {
-      final response = await http.post(
-        Uri.parse(AppConstants.effectiveEndpoint),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ${AppConstants.groqApiKey}',
-        },
-        body: jsonEncode({
-          'model': AppConstants.textModel,
-          'messages': [
-            {
-              'role': 'user',
-              'content': prompt,
-            }
-          ],
-          'temperature': 0.3,
-          'response_format': {'type': 'json_object'},
-        }),
+      final model = GenerativeModel(
+        model: AppConstants.textModel,
+        apiKey: apiKey,
+        generationConfig: GenerationConfig(
+          responseMimeType: 'application/json',
+        ),
       );
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final content = data['choices'][0]['message']['content'] as String;
+      final prompt = '${AppConstants.systemPrompt}\n\nRaw Text:\n$extractedText';
+      final content = [Content.text(prompt)];
+      final response = await model.generateContent(content);
+
+      if (response.text != null && response.text!.isNotEmpty) {
+        final String rawContent = response.text!;
         
         // Find JSON part in case the model adds conversational text
-        final startIndex = content.indexOf('{');
-        final endIndex = content.lastIndexOf('}');
+        final startIndex = rawContent.indexOf('{');
+        final endIndex = rawContent.lastIndexOf('}');
         
         if (startIndex != -1 && endIndex != -1) {
-          final jsonString = content.substring(startIndex, endIndex + 1);
+          final jsonString = rawContent.substring(startIndex, endIndex + 1);
           final Map<String, dynamic> jsonData = jsonDecode(jsonString);
           return MindMapNode.fromJson(jsonData);
         } else {
-          throw Exception('Failed to parse JSON from response.');
+          throw Exception('Failed to extract JSON from Gemini response.');
         }
       } else {
-        throw Exception('API Request Failed: ${response.statusCode} - ${response.body}');
+        throw Exception('Gemini returned an empty response.');
       }
     } catch (e) {
-      // Mock generation for demonstration if API is not configured or fails
-      print('Error during LLM generation (${e.toString()}). Returning mock map.');
-      return _generateMockMindMap(extractedText);
+      print('Error during Gemini generation: $e');
+      throw Exception('Failed to generate AI Mind Map. Please ensure your Gemini API key is valid and try again. Details: $e');
     }
   }
 
@@ -88,17 +60,17 @@ $extractedText
       children: [
         MindMapNode(
           id: '1',
-          label: 'Concepts',
+          label: 'Concepts Found',
           children: [
-            MindMapNode(id: '1a', label: 'Item A based on text'),
-            MindMapNode(id: '1b', label: 'Item B based on text'),
+            MindMapNode(id: '1a', label: 'Main Concept A'),
+            MindMapNode(id: '1b', label: 'Main Concept B'),
           ]
         ),
         MindMapNode(
           id: '2',
-          label: 'Summary',
+          label: 'Context/Summary',
           children: [
-            MindMapNode(id: '2a', label: initialText.length > 20 ? initialText.substring(0, 20) + '...' : initialText),
+            MindMapNode(id: '2a', label: initialText.length > 30 ? initialText.substring(0, 30) + '...' : initialText),
           ]
         ),
       ]

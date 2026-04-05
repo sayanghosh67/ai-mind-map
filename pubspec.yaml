@@ -22,6 +22,9 @@ dependencies:
   flutter_animate: ^4.5.2
   share_plus: ^10.1.4
   screenshot: ^3.0.0
+  google_generative_ai: ^0.4.6
+  font_awesome_flutter: ^10.7.0
+  pdf: ^3.12.0
 
 dev_dependencies:
   flutter_test:

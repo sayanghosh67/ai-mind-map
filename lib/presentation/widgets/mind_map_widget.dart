@@ -15,6 +15,11 @@ class MindMapWidgetState extends State<MindMapWidget> {
   late Graph graph;
   late BuchheimWalkerConfiguration builder;
   Map<String, bool> nodeExpandedState = {};
+  final Map<String, Node> _cachedNodes = {};
+
+  Node _getNode(String id) {
+    return _cachedNodes.putIfAbsent(id, () => Node.Id(id));
+  }
 
   @override
   void initState() {
@@ -39,14 +44,15 @@ class MindMapWidgetState extends State<MindMapWidget> {
 
   void _rebuildGraph() {
     graph = Graph()..isTree = true;
-    final root = Node.Id(widget.rootNode.id);
+    final root = _getNode(widget.rootNode.id);
+    graph.addNode(root);
     _traverseAndAdd(widget.rootNode, root);
   }
 
   void _traverseAndAdd(model.MindMapNode currentMapNode, Node parentGraphNode) {
     if (nodeExpandedState[currentMapNode.id] == true) {
       for (var child in currentMapNode.children) {
-        final childGraphNode = Node.Id(child.id);
+        final childGraphNode = _getNode(child.id);
         graph.addEdge(parentGraphNode, childGraphNode);
         _traverseAndAdd(child, childGraphNode);
       }
@@ -141,6 +147,7 @@ class MindMapWidgetState extends State<MindMapWidget> {
           alignment: Alignment.center,
           padding: const EdgeInsets.all(40),
           child: GraphView(
+            key: ValueKey(nodeExpandedState.values.toString()),
             graph: graph,
             algorithm: BuchheimWalkerAlgorithm(builder, TreeEdgeRenderer(builder)),
             paint: Paint()
