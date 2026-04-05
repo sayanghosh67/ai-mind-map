@@ -8,35 +8,48 @@ class MindMapWidget extends StatefulWidget {
   const MindMapWidget({super.key, required this.rootNode});
 
   @override
-  State<MindMapWidget> createState() => _MindMapWidgetState();
+  State<MindMapWidget> createState() => MindMapWidgetState();
 }
 
-class _MindMapWidgetState extends State<MindMapWidget> {
-  final Graph graph = Graph()..isTree = true;
+class MindMapWidgetState extends State<MindMapWidget> {
+  late Graph graph;
   late BuchheimWalkerConfiguration builder;
+  Map<String, bool> nodeExpandedState = {};
 
   @override
   void initState() {
     super.initState();
-    _buildGraph(widget.rootNode);
     builder = BuchheimWalkerConfiguration()
-      ..siblingSeparation = (100)
+      ..siblingSeparation = (50)
       ..levelSeparation = (100)
-      ..subtreeSeparation = (100)
-      ..orientation = (BuchheimWalkerConfiguration.ORIENTATION_TOP_BOTTOM);
+      ..subtreeSeparation = (50)
+      ..orientation = (BuchheimWalkerConfiguration.ORIENTATION_LEFT_RIGHT);
+    
+    // Initialize root as expanded, others as well unless determined otherwise.
+    _initializeExpandedState(widget.rootNode);
+    _rebuildGraph();
   }
 
-  Node _buildGraph(model.MindMapNode nodeMap) {
-    final root = Node.Id(nodeMap.id);
-    _traverseAndAdd(nodeMap, root);
-    return root;
+  void _initializeExpandedState(model.MindMapNode node) {
+    nodeExpandedState[node.id] = true; 
+    for (var child in node.children) {
+      _initializeExpandedState(child);
+    }
+  }
+
+  void _rebuildGraph() {
+    graph = Graph()..isTree = true;
+    final root = Node.Id(widget.rootNode.id);
+    _traverseAndAdd(widget.rootNode, root);
   }
 
   void _traverseAndAdd(model.MindMapNode currentMapNode, Node parentGraphNode) {
-    for (var child in currentMapNode.children) {
-      final childGraphNode = Node.Id(child.id);
-      graph.addEdge(parentGraphNode, childGraphNode);
-      _traverseAndAdd(child, childGraphNode);
+    if (nodeExpandedState[currentMapNode.id] == true) {
+      for (var child in currentMapNode.children) {
+        final childGraphNode = Node.Id(child.id);
+        graph.addEdge(parentGraphNode, childGraphNode);
+        _traverseAndAdd(child, childGraphNode);
+      }
     }
   }
 
@@ -52,25 +65,64 @@ class _MindMapWidgetState extends State<MindMapWidget> {
   Widget _nodeWidget(Node node) {
     final nodeId = node.key!.value.toString();
     final modelNode = _findNodeById(widget.rootNode, nodeId);
-    
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primaryContainer,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
+    if (modelNode == null) return const SizedBox.shrink();
+
+    final isExpanded = nodeExpandedState[nodeId] ?? true;
+    final hasChildren = modelNode.children.isNotEmpty;
+
+    return GestureDetector(
+      onTap: () {
+        if (hasChildren) {
+          setState(() {
+            nodeExpandedState[nodeId] = !isExpanded;
+            _rebuildGraph();
+          });
+        }
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: hasChildren 
+              ? [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary]
+              : [Theme.of(context).colorScheme.surface, Theme.of(context).colorScheme.surface],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
-        ],
-      ),
-      child: Text(
-        modelNode?.label ?? '',
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: Theme.of(context).colorScheme.onPrimaryContainer,
-          fontWeight: FontWeight.bold,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+          border: hasChildren ? null : Border.all(color: Theme.of(context).colorScheme.primary.withOpacity(0.5), width: 1.5),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              modelNode.label,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: hasChildren ? Colors.white : Theme.of(context).colorScheme.onSurface,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            if (hasChildren) ...[
+              const SizedBox(width: 8),
+              AnimatedRotation(
+                turns: isExpanded ? 0 : 0.5,
+                duration: const Duration(milliseconds: 300),
+                child: Icon(
+                  Icons.keyboard_arrow_down,
+                  color: Colors.white.withOpacity(0.8),
+                  size: 20,
+                ),
+              ),
+            ]
+          ],
         ),
       ),
     );
@@ -78,27 +130,27 @@ class _MindMapWidgetState extends State<MindMapWidget> {
 
   @override
   Widget build(BuildContext context) {
-    return InteractiveViewer(
-      constrained: false,
-      boundaryMargin: const EdgeInsets.all(double.infinity),
-      minScale: 0.1,
-      maxScale: 5.0,
-      child: Container(
-        alignment: Alignment.center,
-        constraints: BoxConstraints(
-          minWidth: MediaQuery.of(context).size.width,
-          minHeight: MediaQuery.of(context).size.height,
-        ),
-        child: GraphView(
-          graph: graph,
-          algorithm: BuchheimWalkerAlgorithm(builder, TreeEdgeRenderer(builder)),
-          paint: Paint()
-            ..color = Theme.of(context).colorScheme.outline
-            ..strokeWidth = 2
-            ..style = PaintingStyle.stroke,
-          builder: (Node node) {
-            return _nodeWidget(node);
-          },
+    return Container(
+      color: Theme.of(context).colorScheme.background,
+      child: InteractiveViewer(
+        constrained: false,
+        boundaryMargin: const EdgeInsets.all(double.infinity),
+        minScale: 0.1,
+        maxScale: 3.0,
+        child: Container(
+          alignment: Alignment.center,
+          padding: const EdgeInsets.all(40),
+          child: GraphView(
+            graph: graph,
+            algorithm: BuchheimWalkerAlgorithm(builder, TreeEdgeRenderer(builder)),
+            paint: Paint()
+              ..color = Theme.of(context).colorScheme.primary.withOpacity(0.5)
+              ..strokeWidth = 2.5
+              ..style = PaintingStyle.stroke,
+            builder: (Node node) {
+              return _nodeWidget(node);
+            },
+          ),
         ),
       ),
     );

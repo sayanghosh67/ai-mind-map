@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import '../../domain/providers/app_providers.dart';
 import 'result_screen.dart';
 
@@ -28,7 +29,7 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
     }
 
     try {
-      // Step 1: OCR Processing
+      if (!mounted) return;
       setState(() {
         _currentStep = 'Extracting text from image...';
         _progress = 0.3;
@@ -44,15 +45,20 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
       
       ref.read(extractedTextProvider.notifier).state = text;
 
+      if (!mounted) return;
       setState(() {
         _currentStep = 'AI is structuring the mind map...';
         _progress = 0.7;
       });
       
-      // Navigate to Result Screen which will consume the FutureProvider
       if (mounted) {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const ResultScreen()),
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) => const ResultScreen(),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return FadeTransition(opacity: animation, child: child);
+            },
+          ),
         );
       }
     } catch (e) {
@@ -66,15 +72,23 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Error'),
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Icon(Icons.error_outline, color: Theme.of(context).colorScheme.error),
+            const SizedBox(width: 8),
+            const Text('Processing Error'),
+          ],
+        ),
         content: Text(message),
         actions: [
-          TextButton(
+          ElevatedButton(
             onPressed: () {
-              Navigator.of(context).pop(); // Close dialog
-              Navigator.of(context).pop(); // Go back to Home
+              Navigator.of(context).pop(); 
+              Navigator.of(context).pop(); 
             },
-            child: const Text('OK'),
+            child: const Text('Go Back'),
           ),
         ],
       ),
@@ -84,7 +98,7 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
+      backgroundColor: Theme.of(context).colorScheme.background,
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(40.0),
@@ -92,40 +106,56 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.all(32),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primaryContainer,
+                  color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
                   shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                      blurRadius: 40,
+                      spreadRadius: 10,
+                    )
+                  ]
                 ),
-                child: CircularProgressIndicator(
-                  value: null, // Indeterminate
-                  color: Theme.of(context).colorScheme.onPrimaryContainer,
-                  strokeWidth: 4,
+                child: SizedBox(
+                  width: 60,
+                  height: 60,
+                  child: CircularProgressIndicator(
+                    value: null, 
+                    color: Theme.of(context).colorScheme.primary,
+                    strokeWidth: 6,
+                  ),
+                ),
+              ).animate().shimmer(duration: 1500.ms, color: Colors.white54),
+              const SizedBox(height: 48),
+              Container(
+                clipBehavior: Clip.hardEdge,
+                decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
+                child: LinearProgressIndicator(
+                  value: _progress,
+                  minHeight: 12,
+                  backgroundColor: Theme.of(context).colorScheme.surface,
+                  valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.secondary),
                 ),
               ),
-              const SizedBox(height: 40),
-              LinearProgressIndicator(
-                value: _progress,
-                borderRadius: BorderRadius.circular(8),
-                minHeight: 8,
-              ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 32),
               Text(
                 _currentStep,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.onSurface,
+                  color: Theme.of(context).colorScheme.onBackground,
                 ),
                 textAlign: TextAlign.center,
-              ),
+              ).animate(key: ValueKey(_currentStep)).fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0),
               const SizedBox(height: 16),
               Text(
                 'This may take a few moments depending on the complexity of your notes.',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Colors.grey[600],
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: Theme.of(context).colorScheme.onBackground.withOpacity(0.6),
                 ),
                 textAlign: TextAlign.center,
-              ),
+              ).animate().fadeIn(delay: 600.ms),
             ],
           ),
         ),

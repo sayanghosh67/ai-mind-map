@@ -1,52 +1,86 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:screenshot/screenshot.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
 import '../../domain/providers/app_providers.dart';
 import '../widgets/mind_map_widget.dart';
 
-class ResultScreen extends ConsumerWidget {
+class ResultScreen extends ConsumerStatefulWidget {
   const ResultScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ResultScreen> createState() => _ResultScreenState();
+}
+
+class _ResultScreenState extends ConsumerState<ResultScreen> {
+  final ScreenshotController screenshotController = ScreenshotController();
+  bool isExporting = false;
+
+  Future<void> _shareMindMap() async {
+    setState(() => isExporting = true);
+    try {
+      final imageContext = await screenshotController.capture(delay: const Duration(milliseconds: 10));
+      if (imageContext != null) {
+        final directory = await getApplicationDocumentsDirectory();
+        final imagePath = await File('\${directory.path}/mindmap_\${DateTime.now().millisecondsSinceEpoch}.png').create();
+        await imagePath.writeAsBytes(imageContext);
+
+        await Share.shareXFiles(
+          [XFile(imagePath.path)], 
+          text: 'Check out my generated AI Mind Map!'
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to share: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => isExporting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final mindMapAsync = ref.watch(mindMapProvider);
+    final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Interactive Mind Map'),
+        title: const Text('Interactive Mind Map', style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.share),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Sharing functionality to be implemented!')),
-              );
-            },
-            tooltip: 'Share Mind Map',
-          ),
-          IconButton(
-            icon: const Icon(Icons.download),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('PDF Export to be implemented!')),
-              );
-            },
-            tooltip: 'Export as PDF',
-          ),
+          if (isExporting)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16.0),
+              child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.share),
+              onPressed: _shareMindMap,
+              tooltip: 'Share Mind Map',
+            ),
         ],
       ),
       body: mindMapAsync.when(
         data: (mindMapNode) {
-          return MindMapWidget(rootNode: mindMapNode);
+          return Screenshot(
+            controller: screenshotController,
+            child: MindMapWidget(rootNode: mindMapNode),
+          );
         },
         loading: () => Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const CircularProgressIndicator(),
+              CircularProgressIndicator(color: theme.colorScheme.primary),
               const SizedBox(height: 24),
               Text(
                 'AI is generating your mind map...',
-                style: Theme.of(context).textTheme.titleLarge,
+                style: theme.textTheme.titleLarge,
               ),
             ],
           ),
@@ -60,20 +94,20 @@ class ResultScreen extends ConsumerWidget {
                 Icon(
                   Icons.error_outline,
                   size: 64,
-                  color: Theme.of(context).colorScheme.error,
+                  color: theme.colorScheme.error,
                 ),
                 const SizedBox(height: 24),
                 Text(
                   'Failed to generate mind map',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: Theme.of(context).colorScheme.error,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    color: theme.colorScheme.error,
                   ),
                 ),
                 const SizedBox(height: 16),
                 Text(
                   error.toString(),
                   textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyMedium,
+                  style: theme.textTheme.bodyMedium,
                 ),
                 const SizedBox(height: 32),
                 ElevatedButton(
