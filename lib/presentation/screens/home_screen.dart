@@ -4,7 +4,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../domain/providers/app_providers.dart';
 import 'processing_screen.dart';
-import 'voice_input_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -57,7 +56,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           IconButton(
             icon: const Icon(Icons.history),
             onPressed: () {
-              // TODO: Navigate to history
+              // Navigate to history stub (TODO)
             },
             tooltip: 'History',
           )
@@ -98,7 +97,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 onHover: (val) => setState(() => _isHoveringCamera = val),
                 onTap: () => _pickImage(ref, ImageSource.camera),
               ).animate().fadeIn(delay: 400.ms, duration: 500.ms).slideX(begin: 0.1, end: 0),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
               _buildActionButton(
                 icon: Icons.image_outlined,
                 title: 'Upload Image',
@@ -108,20 +107,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 onHover: (val) => setState(() => _isHoveringGallery = val),
                 onTap: () => _pickImage(ref, ImageSource.gallery),
               ).animate().fadeIn(delay: 600.ms, duration: 500.ms).slideX(begin: -0.1, end: 0),
-              const SizedBox(height: 16),
-              _buildActionButton(
-                icon: Icons.mic_none_outlined,
-                title: 'Voice to Mind Map',
-                subtitle: 'Dictate notes to generate map',
-                gradientColors: [const Color(0xFF9C27B0), const Color(0xFFE040FB)],
-                isHovering: false,
-                onHover: (val) {}, // State handling could be expanded
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (context) => const VoiceInputScreen()),
-                  );
-                },
-              ).animate().fadeIn(delay: 800.ms, duration: 500.ms).slideX(begin: 0.1, end: 0),
               const Spacer(),
               _buildFooter().animate().fadeIn(delay: 800.ms),
             ],
